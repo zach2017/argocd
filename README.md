@@ -1,6 +1,19 @@
 # argocd
 Demo ArgoCd
 
+
+## Quick Setup
+
+- brew install kind\n
+- kind version\n
+- kind create cluster --name argocd-cluster\n
+- kubectl cluster-info --context kind-argocd-cluster\n
+- kubectl create namespace argocd\n
+- kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml\n
+- kubectl port-forward svc/argocd-server -n argocd 8080:443\n
+- kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d\n
+
+
 ## Setup Key Items:
 
 minikube 
