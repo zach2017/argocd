@@ -2,6 +2,12 @@ Keycloak
 
 Here's a simple, step-by-step guide to setting up Keycloak locally using Docker. I’ll explain each step clearly so you can follow along easily.
 
+## quick start Docker
+
+- docker pull quay.io/keycloak/keycloak:latest
+- docker run -p 7777:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:latest start-dev
+
+
 ### Step 1: Install Docker
 - **What it does**: Docker lets you run Keycloak in a container, which is like a lightweight virtual machine.
 - **How to do it**: 
