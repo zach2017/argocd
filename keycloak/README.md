@@ -8,6 +8,171 @@ Here's a simple, step-by-step guide to setting up Keycloak locally using Docker.
 - docker run -p 7777:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:latest start-dev
 
 
+I'll create a TypeScript-based Remix ViteJS login component using Keycloak-js and then explain how to configure roles and email attributes.
+
+Here's the login component:
+
+```typescript
+import { useEffect, useState } from 'react';
+import Keycloak, { KeycloakInitOptions } from 'keycloak-js';
+import { useNavigate } from '@remix-run/react';
+
+// Keycloak configuration
+const keycloakConfig = {
+  url: 'http://localhost:8080/auth', // Your Keycloak server URL
+  realm: 'my-realm',
+  clientId: 'my-remix-app',
+};
+
+const keycloak = new Keycloak(keycloakConfig);
+
+export default function Login() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [userInfo, setUserInfo] = useState<any>(null);
+  const navigate = useNavigate();
+
+  const initOptions: KeycloakInitOptions = {
+    onLoad: 'login-required',
+    checkLoginIframe: false,
+  };
+
+  useEffect(() => {
+    keycloak
+      .init(initOptions)
+      .then((auth) => {
+        setAuthenticated(auth);
+        if (auth) {
+          // Load user profile
+          keycloak.loadUserInfo().then((user) => {
+            setUserInfo(user);
+            // Store tokens in session storage or secure cookie
+            sessionStorage.setItem('token', keycloak.token || '');
+            sessionStorage.setItem('refreshToken', keycloak.refreshToken || '');
+          });
+        }
+      })
+      .catch((error) => {
+        console.error('Keycloak init failed:', error);
+      });
+
+    // Token refresh handling
+    keycloak.onTokenExpired = () => {
+      keycloak
+        .updateToken(30)
+        .then((refreshed) => {
+          if (refreshed) {
+            sessionStorage.setItem('token', keycloak.token || '');
+            sessionStorage.setItem('refreshToken', keycloak.refreshToken || '');
+          }
+        })
+        .catch(() => console.error('Token refresh failed'));
+    };
+  }, []);
+
+  const handleLogout = () => {
+    keycloak.logout({ redirectUri: window.location.origin });
+    sessionStorage.clear();
+  };
+
+  const hasRole = (role: string) => {
+    return keycloak.hasRealmRole(role) || keycloak.hasResourceRole(role);
+  };
+
+  if (!authenticated) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div className="login-container">
+      <h1>Welcome {userInfo?.name || userInfo?.preferred_username}</h1>
+      <p>Email: {userInfo?.email}</p>
+      
+      {/* Role-based content */}
+      {hasRole('admin') && (
+        <div>
+          <h2>Admin Section</h2>
+          <p>You have admin privileges</p>
+        </div>
+      )}
+      
+      {hasRole('user') && (
+        <div>
+          <h2>User Section</h2>
+          <p>Standard user content</p>
+        </div>
+      )}
+
+      <button onClick={handleLogout}>Logout</button>
+    </div>
+  );
+}
+```
+
+To use this component, you'll need to install the required dependencies:
+```bash
+npm install keycloak-js @remix-run/react
+```
+
+Here's how to configure Keycloak and set up roles and email attributes:
+
+1. **Keycloak Server Setup**:
+- Download and install Keycloak (https://www.keycloak.org/downloads)
+- Start the server: `bin/kc.sh start-dev` (development mode)
+- Access admin console at `http://localhost:8080`
+- Default admin credentials: admin/admin
+
+2. **Realm and Client Configuration**:
+- Create a new realm (e.g., 'my-realm')
+- Create a new client:
+  - Client ID: 'my-remix-app'
+  - Client Protocol: openid-connect
+  - Access Type: public
+  - Valid Redirect URIs: http://localhost:5173/*
+  - Web Origins: http://localhost:5173
+
+3. **Configuring Roles**:
+- In Keycloak Admin Console:
+  - Go to 'Roles' → 'Realm Roles'
+  - Create roles like 'admin' and 'user'
+  - Go to 'Clients' → 'my-remix-app' → 'Client Scopes' → 'my-remix-app-dedicated'
+  - Ensure 'roles' is mapped under 'Mappers'
+- Assign roles to users:
+  - Go to 'Users' → Select a user → 'Role Mappings'
+  - Assign desired realm roles (admin, user, etc.)
+
+4. **Email Attribute Configuration**:
+- Enable email in client scope:
+  - Go to 'Clients' → 'my-remix-app' → 'Client Scopes' → 'my-remix-app-dedicated'
+  - Add mapper: 
+    - Name: email
+    - Mapper Type: User Property
+    - Property: email
+    - Token Claim Name: email
+    - Add to ID token: ON
+    - Add to access token: ON
+- Set user email:
+  - Go to 'Users' → Select a user → 'Attributes'
+  - Add email attribute or fill in the email field in user details
+
+5. **Usage in Remix**:
+- Place the Login component in your routes (e.g., `app/routes/login.tsx`)
+- Update the `keycloakConfig` with your actual Keycloak server details
+- Access protected routes using the token from sessionStorage
+- Check roles using the `hasRole` function
+
+The component will:
+- Automatically redirect to Keycloak login if not authenticated
+- Display user info including email
+- Show content based on user roles
+- Handle token refresh automatically
+- Provide logout functionality
+
+Security notes:
+- In production, use HTTPS
+- Consider using secure cookies instead of sessionStorage
+- Adjust token refresh interval based on your needs
+- Add error boundaries and loading states as needed
+- 
 ### Step 1: Install Docker
 - **What it does**: Docker lets you run Keycloak in a container, which is like a lightweight virtual machine.
 - **How to do it**: 
