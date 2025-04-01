@@ -8,6 +8,296 @@ Here's a simple, step-by-step guide to setting up Keycloak locally using Docker.
 - docker run -p 7777:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:latest start-dev
 
 
+I'll create a React login component using Vite.js, TypeScript, and Keycloak integration. Let me provide you with both the component and an explanation of how to configure user roles and email attributes.
+
+```typescript
+// src/components/KeycloakLogin.tsx
+import React, { useEffect, useState } from 'react';
+import Keycloak from 'keycloak-js';
+
+// Define types for our Keycloak instance and user info
+interface UserInfo {
+  email: string;
+  roles: string[];
+  username: string;
+  isAuthenticated: boolean;
+}
+
+interface KeycloakLoginProps {
+  onLogin?: (userInfo: UserInfo) => void;
+  onError?: (error: Error) => void;
+}
+
+const KeycloakLogin: React.FC<KeycloakLoginProps> = ({ onLogin, onError }) => {
+  // State to track authentication status and user info
+  const [keycloak, setKeycloak] = useState<Keycloak | null>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Initialize Keycloak instance
+    const keycloakInstance = new Keycloak({
+      url: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8080',
+      realm: import.meta.env.VITE_KEYCLOAK_REALM || 'myrealm',
+      clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'myclient'
+    });
+
+    // Initialize Keycloak
+    keycloakInstance
+      .init({
+        onLoad: 'check-sso',
+        silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
+        checkLoginIframe: false
+      })
+      .then((authenticated) => {
+        setKeycloak(keycloakInstance);
+        setLoading(false);
+
+        if (authenticated) {
+          // Load user profile if authenticated
+          keycloakInstance.loadUserProfile().then((profile) => {
+            // Extract roles from token
+            const roles = keycloakInstance.tokenParsed?.realm_access?.roles || [];
+            
+            // Build user info
+            const userInfo: UserInfo = {
+              email: profile.email || '',
+              roles: roles,
+              username: profile.username || '',
+              isAuthenticated: true
+            };
+
+            setUserInfo(userInfo);
+            onLogin?.(userInfo);
+          });
+        }
+      })
+      .catch((error) => {
+        setLoading(false);
+        console.error('Keycloak initialization failed:', error);
+        onError?.(error);
+      });
+
+    // Cleanup function
+    return () => {
+      // Optional: logout if component unmounts
+      // if (keycloakInstance && keycloakInstance.authenticated) {
+      //   keycloakInstance.logout();
+      // }
+    };
+  }, [onLogin, onError]);
+
+  const handleLogin = () => {
+    keycloak?.login();
+  };
+
+  const handleLogout = () => {
+    keycloak?.logout();
+  };
+
+  if (loading) {
+    return <div className="text-center p-4">Loading authentication...</div>;
+  }
+
+  return (
+    <div className="keycloak-login p-4 border rounded">
+      {userInfo?.isAuthenticated ? (
+        <div>
+          <h2 className="text-xl mb-2">Welcome, {userInfo.username}!</h2>
+          <p className="mb-2">Email: {userInfo.email}</p>
+          <div className="mb-2">
+            <strong>Roles:</strong>
+            <ul className="list-disc pl-6">
+              {userInfo.roles.map((role) => (
+                <li key={role}>{role}</li>
+              ))}
+            </ul>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+          >
+            Logout
+          </button>
+        </div>
+      ) : (
+        <div className="text-center">
+          <p className="mb-4">Please log in to access the application</p>
+          <button
+            onClick={handleLogin}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Login with Keycloak
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default KeycloakLogin;
+
+```
+
+```typescript
+// src/main.tsx - Main React application entry point
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// src/App.tsx - App component utilizing the Keycloak login
+import React from 'react';
+import KeycloakLogin from './components/KeycloakLogin';
+
+interface UserInfo {
+  email: string;
+  roles: string[];
+  username: string;
+  isAuthenticated: boolean;
+}
+
+const App: React.FC = () => {
+  const handleLogin = (userInfo: UserInfo) => {
+    console.log('User logged in:', userInfo);
+    // You can store user info in context or state management
+  };
+
+  const handleError = (error: Error) => {
+    console.error('Authentication error:', error);
+    // Handle authentication errors
+  };
+
+  return (
+    <div className="app-container p-6 max-w-md mx-auto">
+      <h1 className="text-2xl font-bold mb-4">My Keycloak Application</h1>
+      <KeycloakLogin onLogin={handleLogin} onError={handleError} />
+    </div>
+  );
+};
+
+export default App;
+
+// public/silent-check-sso.html - Required for silent SSO support
+<!DOCTYPE html>
+<html>
+<head>
+  <script>
+    parent.postMessage(location.href, location.origin);
+  </script>
+</head>
+<body>
+  <!-- Silent SSO check page -->
+</body>
+</html>
+
+// .env file for Keycloak configuration
+VITE_KEYCLOAK_URL=http://localhost:8080
+VITE_KEYCLOAK_REALM=myrealm
+VITE_KEYCLOAK_CLIENT_ID=myclient
+
+```
+
+## How to Configure Roles and Email Attributes in Keycloak
+
+Once you've implemented the login component, you'll need to configure your Keycloak server to manage user roles and email attributes. Here's how to do it:
+
+### Setting Up Roles
+
+1. **Create Roles in Keycloak:**
+   - Log in to the Keycloak Admin Console
+   - Select your realm (e.g., "myrealm")
+   - Go to "Roles" in the left sidebar
+   - Click "Add Role" and create roles like "user", "admin", "manager", etc.
+
+2. **Assign Roles to Users:**
+   - Go to "Users" in the left sidebar
+   - Find and select the user you want to modify
+   - Go to the "Role Mappings" tab
+   - Add the appropriate roles to the user from the "Available Roles" list
+
+3. **Configure Client-Specific Roles (Optional):**
+   - If you need client-specific roles, go to "Clients" in the sidebar
+   - Select your client (e.g., "myclient")
+   - Go to the "Roles" tab and create client-specific roles
+   - Assign these roles to users through the user's "Role Mappings" page
+
+### Configuring Email Attributes
+
+1. **Ensure Email is Required:**
+   - In the Keycloak Admin Console, go to "Authentication"
+   - Click on "Flows" tab
+   - Select "Registration" flow
+   - Make sure "Registration User Creation" has "Email as username" enabled if you want to use email as the username
+
+2. **Configure User Attributes:**
+   - Go to "Users" and select a user
+   - In the "Attributes" tab, you can add custom attributes
+   - For email verification, go to the "Details" tab and ensure the email is verified
+
+3. **Configure SMTP for Email Verification:**
+   - Go to "Realm Settings" > "Email"
+   - Configure your SMTP server settings to enable email verification
+   - This allows Keycloak to send verification emails when users register
+
+### Client Configuration for Proper Token Claims
+
+The component I provided accesses role information from the JWT token. To ensure roles are included in the token:
+
+1. **Configure Client Scope:**
+   - Go to "Clients" > Your client > "Client Scopes"
+   - Ensure that the "roles" scope is included in the client's scopes
+   - Click on the "roles" scope and verify "realm_access.roles" is mapped
+
+2. **Protocol Mappers:**
+   - Go to "Clients" > Your client > "Mappers"
+   - Ensure you have a mapper for "realm roles" that maps to "realm_access.roles"
+   - Add an email mapper if not present: 
+     - Create a new mapper
+     - Type: "User Property"
+     - Property: "email"
+     - Token Claim Name: "email"
+     - Claim JSON Type: "String"
+
+### Testing the Integration
+
+1. After setting up roles and email attributes in Keycloak, run your Vite.js application
+2. Click the login button to authenticate with Keycloak
+3. Upon successful authentication, the component will display:
+   - Username
+   - Email address
+   - Assigned roles
+
+### Security Best Practices
+
+1. **Role-Based Access Control (RBAC):**
+   ```typescript
+   // Example function to check if a user has a specific role
+   const hasRole = (requiredRole: string): boolean => {
+     return userInfo?.roles.includes(requiredRole) || false;
+   };
+   
+   // Usage in a protected component
+   if (hasRole('admin')) {
+     // Show admin-only content
+   }
+   ```
+
+2. **Token Validation:**
+   - Always validate tokens on your backend API
+   - Check token expiration before processing requests
+   - Verify token signatures using Keycloak's public key
+
+3. **Enable SSL/TLS** in production for both your application and Keycloak server
+
+Let me know if you need any clarification or want to modify any part of the implementation!
+
 I'll create a TypeScript-based Remix ViteJS login component using Keycloak-js and then explain how to configure roles and email attributes.
 
 Here's the login component:
