@@ -7,7 +7,24 @@ Here's a simple, step-by-step guide to setting up Keycloak locally using Docker.
 - docker pull quay.io/keycloak/keycloak:latest
 - docker run -p 7777:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:latest start-dev
 
+npm create remix@latest --template remix-run/remix-vite-template remix-vite-keycloak-app
 
+npm install dotenv # Still useful for loading .env for the server process
+
+# .env file
+```
+# Keycloak Configuration (Server-Side Access Only)
+KEYCLOAK_URL="http://localhost:8080"
+KEYCLOAK_REALM="myrealm"
+KEYCLOAK_CLIENT_ID="remix-app"
+KEYCLOAK_CLIENT_SECRET="YOUR_CLIENT_SECRET_HERE" # NO VITE_ prefix! Secret.
+
+# Application Configuration (Server-Side Access Only for this flow)
+APP_BASE_URL="http://localhost:3000" # Primarily needed server-side for redirect URIs
+
+# Remix Session Configuration (Server-Side Secret)
+SESSION_SECRET="SOME_SUPER_SECRET_STRING_FOR_SESSION_ENCRYPTION" # NO VITE_ prefix! Secret.
+```
 You're right - Keycloak has deprecated the older initialization method. Let me update the code to use the current recommended initialization process for Keycloak-js.
 
 Thanks for pointing that out! You're absolutely right. I've updated the login component to use the current recommended initialization process for Keycloak-js. Here are the key changes I made:
