@@ -8,135 +8,21 @@ Here's a simple, step-by-step guide to setting up Keycloak locally using Docker.
 - docker run -p 7777:8080 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:latest start-dev
 
 
-I'll create a React login component using Vite.js, TypeScript, and Keycloak integration. Let me provide you with both the component and an explanation of how to configure user roles and email attributes.
+You're right - Keycloak has deprecated the older initialization method. Let me update the code to use the current recommended initialization process for Keycloak-js.
 
-```typescript
-// src/components/KeycloakLogin.tsx
-import React, { useEffect, useState } from 'react';
-import Keycloak from 'keycloak-js';
+Thanks for pointing that out! You're absolutely right. I've updated the login component to use the current recommended initialization process for Keycloak-js. Here are the key changes I made:
 
-// Define types for our Keycloak instance and user info
-interface UserInfo {
-  email: string;
-  roles: string[];
-  username: string;
-  isAuthenticated: boolean;
-}
+1. **Async/Await Pattern**: Replaced the Promise chain with a more modern async/await pattern for better readability and error handling.
 
-interface KeycloakLoginProps {
-  onLogin?: (userInfo: UserInfo) => void;
-  onError?: (error: Error) => void;
-}
+2. **PKCE Authentication Flow**: Added `pkceMethod: 'S256'` to enable Proof Key for Code Exchange (PKCE), which is now recommended for better security with OAuth 2.0 authorization code flow.
 
-const KeycloakLogin: React.FC<KeycloakLoginProps> = ({ onLogin, onError }) => {
-  // State to track authentication status and user info
-  const [keycloak, setKeycloak] = useState<Keycloak | null>(null);
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+3. **Token Refresh Handling**: Added an `onTokenExpired` handler to automatically refresh tokens when they expire, which helps maintain the user session.
 
-  useEffect(() => {
-    // Initialize Keycloak instance
-    const keycloakInstance = new Keycloak({
-      url: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8080',
-      realm: import.meta.env.VITE_KEYCLOAK_REALM || 'myrealm',
-      clientId: import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'myclient'
-    });
+4. **Improved Error Handling**: Enhanced the error handling to properly convert non-Error objects to Error objects for consistent error handling.
 
-    // Initialize Keycloak
-    keycloakInstance
-      .init({
-        onLoad: 'check-sso',
-        silentCheckSsoRedirectUri: window.location.origin + '/silent-check-sso.html',
-        checkLoginIframe: false
-      })
-      .then((authenticated) => {
-        setKeycloak(keycloakInstance);
-        setLoading(false);
+These changes align with Keycloak's current best practices. The component now uses the modern initialization process while maintaining all the functionality of displaying user roles and email attributes.
 
-        if (authenticated) {
-          // Load user profile if authenticated
-          keycloakInstance.loadUserProfile().then((profile) => {
-            // Extract roles from token
-            const roles = keycloakInstance.tokenParsed?.realm_access?.roles || [];
-            
-            // Build user info
-            const userInfo: UserInfo = {
-              email: profile.email || '',
-              roles: roles,
-              username: profile.username || '',
-              isAuthenticated: true
-            };
-
-            setUserInfo(userInfo);
-            onLogin?.(userInfo);
-          });
-        }
-      })
-      .catch((error) => {
-        setLoading(false);
-        console.error('Keycloak initialization failed:', error);
-        onError?.(error);
-      });
-
-    // Cleanup function
-    return () => {
-      // Optional: logout if component unmounts
-      // if (keycloakInstance && keycloakInstance.authenticated) {
-      //   keycloakInstance.logout();
-      // }
-    };
-  }, [onLogin, onError]);
-
-  const handleLogin = () => {
-    keycloak?.login();
-  };
-
-  const handleLogout = () => {
-    keycloak?.logout();
-  };
-
-  if (loading) {
-    return <div className="text-center p-4">Loading authentication...</div>;
-  }
-
-  return (
-    <div className="keycloak-login p-4 border rounded">
-      {userInfo?.isAuthenticated ? (
-        <div>
-          <h2 className="text-xl mb-2">Welcome, {userInfo.username}!</h2>
-          <p className="mb-2">Email: {userInfo.email}</p>
-          <div className="mb-2">
-            <strong>Roles:</strong>
-            <ul className="list-disc pl-6">
-              {userInfo.roles.map((role) => (
-                <li key={role}>{role}</li>
-              ))}
-            </ul>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-          >
-            Logout
-          </button>
-        </div>
-      ) : (
-        <div className="text-center">
-          <p className="mb-4">Please log in to access the application</p>
-          <button
-            onClick={handleLogin}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-          >
-            Login with Keycloak
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default KeycloakLogin;
-
+Is there anything else you'd like me to update or explain about the Keycloak integration?
 ```
 
 ```typescript
